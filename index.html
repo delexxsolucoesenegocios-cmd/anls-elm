@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Análise de E-mail · IAPol®</title>
+<link rel="icon" type="image/png" href="./favicon.png">
+<meta name="robots" content="noindex,nofollow" />
+<style>
+  :root{ --bg:#0a0f1a; --card:#0f1422; --line:#1e4d92; --brand:#1677ff; --brand-2:#0b5ed7; --text:#eaf2ff; --muted:#a9c0e6; --soft:#0f203f; --bad:#e5534b; }
+  *{box-sizing:border-box}
+  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text);margin:0}
+  .wrap{max-width:1180px;margin:0 auto;padding:24px}
+
+  header{display:flex;align-items:center;gap:14px;margin-bottom:16px}
+  .brand{display:flex;align-items:center;gap:12px}
+  .brand img{width:54px;height:54px;object-fit:contain;border-radius:50%}
+  .brand h1{font-size:32px;margin:0;color:#d8e8ff;line-height:1.1}
+  .badge{margin-top:6px;display:inline-block;padding:6px 14px;border-radius:999px;background:#0f203f;border:1px solid var(--line);color:#dbeaff;font-weight:700;font-size:12px;letter-spacing:.3px}
+
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.28);padding:20px}
+  .sub{color:#d2e3ff;margin:0 0 12px}
+  form{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 12px}
+  input[type=text]{flex:1;min-width:280px;padding:12px 14px;border-radius:12px;border:1px solid #1b3b6f;background:#0f1422;color:#f0f6ff}
+  input.invalid{border-color:var(--bad);outline-color:var(--bad)}
+  button{padding:12px 16px;border-radius:12px;border:0;background:var(--brand);color:#fff;font-weight:700;cursor:pointer}
+  button:hover{background:var(--brand-2)}
+  .actions{display:flex;gap:8px;margin:8px 0 4px;flex-wrap:wrap}
+  .pill{display:inline-block;padding:6px 10px;border:1px solid var(--line);border-radius:999px;background:#0f203f;color:#d7e7ff;margin:4px 6px 0 0;font-weight:600}
+  .hint{font-size:12px;color:#9db3dc;margin-top:6px}
+
+  .layout{display:grid;grid-template-columns:430px 1fr;gap:14px;margin-top:10px}
+  @media (max-width:980px){ .layout{grid-template-columns:1fr} }
+
+  .group{border:1px solid var(--line);border-radius:12px;padding:12px;background:#0f1422;margin-bottom:12px}
+  .group h2{font-size:15px;margin:0 0 8px;color:#a9d1ff}
+  ul{list-style:none;margin:0;padding:0}
+  li{padding:8px 0;border-bottom:1px solid rgba(255,255,255,.06)}
+  li:last-child{border-bottom:0}
+  a{color:#9dc9ff;text-decoration:none}
+  a:hover{text-decoration:underline}
+
+  .viewer{border:1px solid var(--line);border-radius:12px;background:#0f1422}
+  .viewer-head{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-bottom:1px solid var(--line);background:var(--soft)}
+  .viewer-url{color:#9db9e2;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:70%}
+  .viewer-ctrls{display:flex;gap:8px}
+  .viewer-ctrls button{padding:8px 10px;font-size:12px}
+  iframe#visor{width:100%;height:72vh;border:0;border-bottom-left-radius:12px;border-bottom-right-radius:12px;background:#0b0f1a}
+
+  .preview{border:1px dashed var(--line);border-radius:12px;padding:10px;background:#0f1422;max-height:320px;overflow:auto;margin-top:10px}
+  .pv-item{padding:8px;border-bottom:1px solid rgba(255,255,255,.06)}
+  .pv-item:last-child{border-bottom:0}
+  .pv-title{color:#cfe3ff;font-weight:700;margin-bottom:4px}
+  .pv-url{color:#9db9e2;font-size:12px;margin-bottom:4px;word-break:break-all}
+  .pv-snippet{color:#c7d6ef;font-size:13px}
+
+  .footer{margin-top:12px;text-align:center;color:#97acd6;font-size:12px}
+</style>
+
+<!-- jsPDF e SheetJS -->
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <img src="./iapol-logo.png" alt="IAPol®" onerror="this.style.display='none'">
+      <div>
+        <h1>Análise de E-mail</h1>
+        <div class="badge">IAPol® | Inteligência Artificial Policial</div>
+      </div>
+    </div>
+  </header>
+
+  <div class="card">
+    <p class="sub"><strong>Insira um Telefone/WhatsApp, CPF ou E-mail.</strong> O painel gera dorks OSINT e atalhos de recuperação que, conforme o caso, revelam <em>indícios</em> de e-mails vinculados e evidências de titularidade.</p>
+
+    <form onsubmit="return gerar()">
+      <input type="text" id="q" autocomplete="off"
+             placeholder="Ex.: (11) 98888-7777  |  123.456.789-09  |  usuario@email.com" />
+      <button type="submit">Analisar</button>
+    </form>
+
+    <div id="fmtBox" class="hint" style="display:none"></div>
+
+    <div class="actions" id="exportBar" style="display:none">
+      <button type="button" onclick="exportCSV()">Exportar CSV</button>
+      <button type="button" onclick="exportPDF()">Exportar PDF</button>
+      <button type="button" onclick="exportTXT()">Exportar TXT</button>
+      <button type="button" onclick="exportXLSX()">Exportar XLSX</button>
+    </div>
+
+    <div class="layout">
+      <div>
+        <div id="lists"></div>
+        <div class="preview" id="preview" style="display:none"></div>
+      </div>
+
+      <div class="viewer">
+        <div class="viewer-head">
+          <div class="viewer-url" id="viewerUrl">Selecione um diretório à esquerda para pré-visualizar</div>
+          <div class="viewer-ctrls">
+            <button type="button" onclick="openInNewTab()">Abrir em nova aba</button>
+            <button type="button" onclick="toggleReader()">Alternar leitura</button>
+          </div>
+        </div>
+        <iframe id="visor" sandbox="allow-scripts allow-forms allow-same-origin allow-popups" referrerpolicy="no-referrer"></iframe>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">IAPol® · uso responsável (LGPD/leis vigentes) · Respeite os Termos de Uso de cada plataforma.</div>
+</div>
+
+<script>
+/* ===================== Normalização / Validações ===================== */
+function onlyDigits(s){ return (s||"").replace(/\D+/g,""); }
+function isEmail(s){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((s||"").trim()); }
+function isPhoneDigits(d){ return d.length>=10 && d.length<=13; } // aceita fixo, celular e com DDI
+function maskCPFdigits(d){
+  d = (d||"").slice(0,11);
+  if(d.length<=3) return d;
+  if(d.length<=6) return d.slice(0,3)+"."+d.slice(3);
+  if(d.length<=9) return d.slice(0,3)+"."+d.slice(3,6)+"."+d.slice(6);
+  return d.slice(0,3)+"."+d.slice(3,6)+"."+d.slice(6,9)+"-"+d.slice(9,11);
+}
+function validaCPFdigits(num11){
+  if(num11.length!==11 || /^(\d)\1{10}$/.test(num11)) return false;
+  const calc=(b)=>{let s=0,f=b+1;for(let i=0;i<b;i++)s+=parseInt(num11[i],10)*(f-i);const r=(s*10)%11;return r===10?0:r;};
+  return calc(9)===parseInt(num11[9],10) && calc(10)===parseInt(num11[10],10);
+}
+function fmtPhone(d){ // (11) 98888-7777 ou +55 11 98888-7777
+  d = onlyDigits(d);
+  if(d.length===11) return `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`;
+  if(d.length===10) return `(${d.slice(0,2)}) ${d.slice(2,6)}-${d.slice(6)}`;
+  if(d.length===12) return `+${d.slice(0,2)} (${d.slice(2,4)}) ${d.slice(4,8)}-${d.slice(8)}`;
+  if(d.length===13) return `+${d.slice(0,2)} (${d.slice(2,4)}) ${d.slice(4,9)}-${d.slice(9)}`;
+  return d;
+}
+function detectType(q){
+  const t = (q||"").trim();
+  if(isEmail(t)) return {type:"email", value:t};
+  const d = onlyDigits(t);
+  if(validaCPFdigits(d)) return {type:"cpf", value:maskCPFdigits(d), raw:d};
+  if(isPhoneDigits(d)) return {type:"phone", value:fmtPhone(d), raw:d};
+  // fallback: trata como e-mail pesquisa livre
+  return {type:"unknown", value:t};
+}
+
+/* ===================== Visor / Reader ===================== */
+function reader(url) {
+  const abs = /^https?:\/\//i.test(url) ? url : `https://${url}`;
+  return `https://r.jina.ai/http/${abs}`;
+}
+function setViewer(url, { forceReader=false } = {}) {
+  const abs = /^https?:\/\//i.test(url) ? url : `https://${url}`;
+  const frame = document.getElementById("visor");
+  const vurl  = document.getElementById("viewerUrl");
+  const final = forceReader ? reader(abs) : abs;
+  frame.src = final; vurl.textContent = final;
+  window.__viewer_current = abs; window.__viewer_reader = forceReader;
+}
+function toggleReader(){ if(!window.__viewer_current) return; setViewer(window.__viewer_current,{forceReader:!window.__viewer_reader}); }
+function openInNewTab(){ if(!window.__viewer_current) return; const u = window.__viewer_reader ? reader(window.__viewer_current) : window.__viewer_current; window.open(u,"_blank"); }
+
+/* ===================== Fontes por tipo (foco: e-mail) ===================== */
+const RESET_PLATFORMS = [
+  ["OLX", "https://www.olx.com.br/ajuda/conta/recuperar-senha"],
+  ["99 (app)", "https://passageiro.99app.com/forgot-password"],
+  ["Shopee", "https://shopee.com.br/buyer/login/forgot-password"],
+  ["iFood", "https://www.ifood.com.br/account/forgot-password"],
+  ["Mercado Livre", "https://www.mercadolivre.com.br/registration/password-recovery"],
+  ["Magazine Luiza", "https://www.magazineluiza.com.br/cliente/recuperar-senha/"],
+  ["Americanas", "https://www.americanas.com.br/senha/recuperar"],
+  ["Submarino", "https://www.submarino.com.br/senha/recuperar"]
+];
+
+function sourcesFromEmail(email){
+  const e = encodeURIComponent(email);
+  return [
+    ["Consultas diretas (e-mail)", [
+      ["Epieos (OSINT e-mail)", "https://epieos.com/"],
+      ["Google: \"e-mail\" + telefone/nome", `https://www.google.com/search?q=%22${e}%22+(telefone+OR+whatsapp+OR+contato+OR+%22nome%20completo%22)`],
+      ["Bing", `https://www.bing.com/search?q=%22${e}%22+telefone+OR+whatsapp+OR+contato`],
+      ["DuckDuckGo", `https://duckduckgo.com/?q=%22${e}%22+telefone+OR+whatsapp+OR+contato`],
+      ["Have I Been Pwned? (exposição)", "https://haveibeenpwned.com/"] 
+    ]],
+    ["Perfis / resets por e-mail", [
+      ["LinkedIn (reset)", "https://www.linkedin.com/checkpoint/rp/request-password-reset"],
+      ["Facebook (identificar conta)", "https://www.facebook.com/login/identify"],
+      ["X / Twitter (reset)", "https://x.com/account/begin_password_reset"]
+    ]],
+    ["Recuperação de cadastro (pode revelar telefone/e-mail mascarado)", RESET_PLATFORMS.map(([n,u])=>[`${n} — “esqueci minha senha”`, u])]
+  ];
+}
+
+function sourcesFromPhone(phoneFmt, phoneRaw){
+  const p = encodeURIComponent(phoneFmt);
+  const d = encodeURIComponent(onlyDigits(phoneRaw));
+  // busca correlação telefone → e-mail
+  return [
+    ["Motores (telefone → e-mail)", [
+      ["Google (amplo)", `https://www.google.com/search?q=%22${p}%22+(email+OR+e-mail+OR+contato)`],
+      ["Google (somente dígitos)", `https://www.google.com/search?q=%22${d}%22+(email+OR+e-mail+OR+contato)`],
+      ["Bing", `https://www.bing.com/search?q=%22${p}%22+(email+OR+e-mail+OR+contato)`],
+      ["DuckDuckGo", `https://duckduckgo.com/?q=%22${p}%22+(email+OR+e-mail+OR+contato)`]
+    ]],
+    ["Documentos", [
+      ["PDFs com e-mail", `https://www.google.com/search?q=%22${p}%22+(email+OR+e-mail)+filetype:pdf`],
+      ["Planilhas (XLS/XLSX/CSV)", `https://www.google.com/search?q=%22${p}%22+(email+OR+e-mail)+(filetype:xls+OR+filetype:xlsx+OR+filetype:csv)`]
+    ]],
+    ["Recuperação de cadastro (informar telefone)", RESET_PLATFORMS.map(([n,u])=>[`${n} — “esqueci minha senha”`, u])]
+  ];
+}
+
+function sourcesFromCPF(cpfFmt){
+  const c = encodeURIComponent(cpfFmt);
+  return [
+    ["Google Dorks (CPF → e-mail)", [
+      ["PDF com e-mail", `https://www.google.com/search?q=%22${c}%22+(email+OR+e-mail)+filetype:pdf`],
+      ["Planilhas (XLS/XLSX/CSV)", `https://www.google.com/search?q=%22${c}%22+(email+OR+e-mail)+(filetype:xls+OR+filetype:xlsx+OR+filetype:csv)`],
+      ["Diários/Transparência", `https://www.google.com/search?q=site:in.gov.br+OR+site:transparencia.*+%22${c}%22+(email+OR+e-mail)`],
+      ["*.jus.br", `https://www.google.com/search?q=site:*.jus.br+%22${c}%22+(email+OR+e-mail)`],
+      ["MEI (cnpj.biz)", `https://www.google.com/search?q=%22${c}%22+site:cnpj.biz+(email+OR+e-mail)`]
+    ]],
+    ["Recuperação de cadastro (informar CPF)", RESET_PLATFORMS.map(([n,u])=>[`${n} — “esqueci minha senha”`, u])]
+  ];
+}
+
+/* ===================== Montagem / UI ===================== */
+function buildLists(groups){
+  const lists = document.getElementById("lists");
+  lists.innerHTML = "";
+  groups.forEach(([titulo, itens])=>{
+    const div = document.createElement("div");
+    div.className = "group";
+    const h2  = document.createElement("h2"); h2.textContent = titulo;
+    const ul  = document.createElement("ul");
+    itens.forEach(([label,url])=>{
+      const li = document.createElement("li");
+      const a  = document.createElement("a");
+      a.textContent = label; a.href="#";
+      a.onclick = (ev)=>{ ev.preventDefault(); openDirectory(label,url); };
+      li.appendChild(a); ul.appendChild(li);
+    });
+    div.appendChild(h2); div.appendChild(ul); lists.appendChild(div);
+  });
+}
+
+async function openDirectory(title, url){
+  const abs = /^https?:\/\//i.test(url) ? url : `https://${url}`;
+  setViewer(abs,{forceReader:true});
+
+  const pv = document.getElementById("preview");
+  pv.style.display="block";
+  pv.innerHTML = `<div class="pv-item"><div class="pv-title">Carregando prévia de ${title}…</div></div>`;
+  try{
+    const resp = await fetch(reader(abs), {mode:"cors"});
+    if(!resp.ok) throw new Error(resp.statusText);
+    const txt = await resp.text();
+    const lines = txt.split("\n").filter(Boolean);
+    const blocks=[]; let acc=[];
+    for(const l of lines){
+      if((/^#|^##|\d+\.\s|•\s/).test(l) && acc.length){ blocks.push(acc.join(" ")); acc=[l]; }
+      else acc.push(l);
+      if(blocks.length>=10) break;
+    }
+    if(acc.length && blocks.length<10) blocks.push(acc.join(" "));
+    pv.innerHTML = blocks.slice(0,8).map((b,i)=>`
+      <div class="pv-item">
+        <div class="pv-title">${title} — item ${i+1}</div>
+        <div class="pv-url">${abs}</div>
+        <div class="pv-snippet">${b.replace(/\s+/g," ").slice(0,320)}…</div>
+        <div style="margin-top:6px">
+          <button type="button" onclick="setViewer('${abs.replace(/'/g,"\\'")}',{forceReader:false})">Abrir página original</button>
+          <button type="button" onclick="setViewer('${abs.replace(/'/g,"\\'")}',{forceReader:true})">Abrir em leitura</button>
+        </div>
+      </div>`).join("") || `<div class="pv-item"><div class="pv-title">${title}</div><div class="pv-snippet">Prévia indisponível.</div></div>`;
+  }catch(e){
+    pv.innerHTML = `<div class="pv-item"><div class="pv-title">${title}</div><div class="pv-snippet">Não foi possível obter a prévia agora.</div></div>`;
+  }
+}
+
+/* ===================== Exportações ===================== */
+function flatten(groups){
+  const rows=[];
+  groups.forEach(([grupo,itens])=>{
+    itens.forEach(([fonte,url])=>{
+      const abs = /^https?:\/\//i.test(url) ? url : `https://${url}`;
+      rows.push({GRUPO:grupo, FONTE:fonte, URL:abs});
+    });
+  });
+  return rows;
+}
+function exportCSV(){
+  const st = window.__state; if(!st){ alert("Faça a análise primeiro."); return; }
+  const rows = flatten(st.groups);
+  let csv = "TIPO;CONSULTA;GRUPO;FONTE;URL\n";
+  rows.forEach(r=>{ csv += `"${st.type}";"${st.value.replace(/"/g,'""')}";"${r.GRUPO.replace(/"/g,'""')}";"${r.FONTE.replace(/"/g,'""')}";"${r.URL.replace(/"/g,'""')}"\n`; });
+  const blob = new Blob([csv], {type:"text/csv;charset=utf-8"});
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
+  a.download=`IAPol_Analise_Email_${st.type}.csv`; a.click();
+}
+function exportTXT(){
+  const st = window.__state; if(!st){ alert("Faça a análise primeiro."); return; }
+  const rows = flatten(st.groups);
+  let txt = `IAPol® — Análise de E-mail\nTipo: ${st.type}\nConsulta: ${st.value}\nData: ${new Date().toLocaleString("pt-BR")}\n\n`;
+  rows.forEach(r=>{ txt += `- [${r.GRUPO}] ${r.FONTE}: ${r.URL}\n`; });
+  const blob = new Blob([txt], {type:"text/plain;charset=utf-8"});
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
+  a.download=`IAPol_Analise_Email_${st.type}.txt`; a.click();
+}
+function exportPDF(){
+  const st = window.__state; if(!st){ alert("Faça a análise primeiro."); return; }
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit:"pt", format:"a4" });
+  const m=48; let y=m;
+  doc.setFont("helvetica","bold"); doc.setFontSize(16);
+  doc.text("IAPol® — Análise de E-mail", m, y); y+=18;
+  doc.setFont("helvetica","normal"); doc.setFontSize(12);
+  doc.text(`Tipo: ${st.type} — Consulta: ${st.value}`, m, y); y+=8;
+  doc.text(`Data: ${new Date().toLocaleString("pt-BR")}`, m, y); y+=18;
+
+  const rows = flatten(st.groups);
+  doc.setFontSize(11);
+  let gAtual = "";
+  rows.forEach(r=>{
+    if(r.GRUPO!==gAtual){
+      if(y>780){ doc.addPage(); y=m; }
+      gAtual=r.GRUPO; doc.setFont("helvetica","bold"); doc.text(gAtual, m, y); y+=12;
+      doc.setFont("helvetica","normal");
+    }
+    const ln = `• ${r.FONTE}: ${r.URL}`;
+    const parts = doc.splitTextToSize(ln, 515);
+    parts.forEach(L=>{ if(y>800){ doc.addPage(); y=m; } doc.text(L, m, y); y+=14; });
+  });
+
+  if(y>800){ doc.addPage(); y=m; }
+  doc.setDrawColor(160); doc.line(m,820,595-m,820);
+  doc.setFontSize(9); doc.setTextColor(120);
+  doc.text("Observação: fluxos de recuperação podem exibir e-mails/telefones mascarados. Respeite LGPD/ToS.", m, 838);
+  doc.save(`IAPol_Analise_Email_${st.type}.pdf`);
+}
+function exportXLSX(){
+  const st = window.__state; if(!st){ alert("Faça a análise primeiro."); return; }
+  const rows = flatten(st.groups);
+  const ws = XLSX.utils.json_to_sheet(rows.map(r=>({TIPO:st.type, CONSULTA:st.value, GRUPO:r.GRUPO, FONTE:r.FONTE, URL:r.URL})));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "AnaliseEmail");
+  XLSX.writeFile(wb, `IAPol_Analise_Email_${st.type}.xlsx`);
+}
+
+/* ===================== Fluxo principal ===================== */
+function gerar(){
+  const qEl = document.getElementById("q");
+  const raw = (qEl.value||"").trim();
+  if(!raw){ alert("Informe Telefone/WhatsApp, CPF ou E-mail."); return false; }
+
+  const det = detectType(raw);
+  let groups;
+  if(det.type==="email"){
+    groups = sourcesFromEmail(det.value);
+  }else if(det.type==="phone"){
+    groups = sourcesFromPhone(det.value, det.raw||onlyDigits(det.value));
+  }else if(det.type==="cpf"){
+    groups = sourcesFromCPF(det.value);
+  }else{
+    // pesquisa livre (tenta achar e-mails relacionados ao termo)
+    const term = encodeURIComponent(`"${det.value}" email OR e-mail`);
+    groups = [
+      ["Pesquisa livre", [
+        ["Google", `https://www.google.com/search?q=${term}`],
+        ["Bing", `https://www.bing.com/search?q=${term}`],
+        ["DuckDuckGo", `https://duckduckgo.com/?q=${term}`]
+      ]]
+    ];
+  }
+
+  window.__state = { type: det.type, value: det.value, groups };
+  document.getElementById("exportBar").style.display = "flex";
+  document.getElementById("fmtBox").innerHTML =
+    `<span class="pill">Tipo: ${det.type.toUpperCase()}</span><span class="pill">Consulta: ${det.value}</span>`;
+  document.getElementById("fmtBox").style.display = "block";
+  buildLists(groups);
+
+  document.getElementById("preview").style.display="none";
+  setViewer("about:blank");
+  document.getElementById("viewerUrl").textContent = "Selecione um diretório à esquerda para pré-visualizar";
+  history.replaceState({}, "", location.pathname + "?q=" + encodeURIComponent(det.value));
+  return false;
+}
+
+/* Inicialização com ?q= */
+(function init(){
+  const p = new URLSearchParams(location.search);
+  const q = p.get("q");
+  if(q){ document.getElementById("q").value = q; gerar(); }
+})();
+</script>
+</body>
+</html>
