@@ -74,7 +74,7 @@
   </header>
 
   <div class="card">
-    <p class="sub"><strong>Insira um Telefone/WhatsApp, CPF ou E-mail.</strong> O painel gera dorks OSINT e atalhos de recuperação que, conforme o caso, revelam <em>indícios</em> de e-mails vinculados e evidências de titularidade.</p>
+    <p class="sub"><strong>Insira um Telefone/WhatsApp, CPF ou E-mail.</strong> O painel gera dorks OSINT e atalhos de recuperação que, conforme o caso, revelam indícios de e-mails vinculados e evidências de titularidade.</p>
 
     <form onsubmit="return gerar()">
       <input type="text" id="q" autocomplete="off"
@@ -130,7 +130,7 @@ function validaCPFdigits(num11){
   const calc=(b)=>{let s=0,f=b+1;for(let i=0;i<b;i++)s+=parseInt(num11[i],10)*(f-i);const r=(s*10)%11;return r===10?0:r;};
   return calc(9)===parseInt(num11[9],10) && calc(10)===parseInt(num11[10],10);
 }
-function fmtPhone(d){ // (11) 98888-7777 ou +55 11 98888-7777
+function fmtPhone(d){
   d = onlyDigits(d);
   if(d.length===11) return `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`;
   if(d.length===10) return `(${d.slice(0,2)}) ${d.slice(2,6)}-${d.slice(6)}`;
@@ -144,22 +144,29 @@ function detectType(q){
   const d = onlyDigits(t);
   if(validaCPFdigits(d)) return {type:"cpf", value:maskCPFdigits(d), raw:d};
   if(isPhoneDigits(d)) return {type:"phone", value:fmtPhone(d), raw:d};
-  // fallback: trata como e-mail pesquisa livre
   return {type:"unknown", value:t};
 }
 
-/* ===================== Visor / Reader ===================== */
+/* ===================== Visor / Reader (CORRIGIDO) ===================== */
+// Constrói a URL do r.jina.ai no formato correto: https://r.jina.ai/http://host/caminho?query
 function reader(url) {
   const abs = /^https?:\/\//i.test(url) ? url : `https://${url}`;
-  return `https://r.jina.ai/http/${abs}`;
+  try {
+    const u = new URL(abs);
+    return `https://r.jina.ai/http://${u.host}${u.pathname}${u.search}`;
+  } catch (e) {
+    return `https://r.jina.ai/http://${abs.replace(/^https?:\/\//i,"")}`;
+  }
 }
-function setViewer(url, { forceReader=false } = {}) {
+function setViewer(url, { forceReader = false } = {}) {
   const abs = /^https?:\/\//i.test(url) ? url : `https://${url}`;
   const frame = document.getElementById("visor");
   const vurl  = document.getElementById("viewerUrl");
   const final = forceReader ? reader(abs) : abs;
-  frame.src = final; vurl.textContent = final;
-  window.__viewer_current = abs; window.__viewer_reader = forceReader;
+  frame.src = final;
+  vurl.textContent = final;
+  window.__viewer_current = abs;
+  window.__viewer_reader  = forceReader;
 }
 function toggleReader(){ if(!window.__viewer_current) return; setViewer(window.__viewer_current,{forceReader:!window.__viewer_reader}); }
 function openInNewTab(){ if(!window.__viewer_current) return; const u = window.__viewer_reader ? reader(window.__viewer_current) : window.__viewer_current; window.open(u,"_blank"); }
@@ -184,7 +191,7 @@ function sourcesFromEmail(email){
       ["Google: \"e-mail\" + telefone/nome", `https://www.google.com/search?q=%22${e}%22+(telefone+OR+whatsapp+OR+contato+OR+%22nome%20completo%22)`],
       ["Bing", `https://www.bing.com/search?q=%22${e}%22+telefone+OR+whatsapp+OR+contato`],
       ["DuckDuckGo", `https://duckduckgo.com/?q=%22${e}%22+telefone+OR+whatsapp+OR+contato`],
-      ["Have I Been Pwned? (exposição)", "https://haveibeenpwned.com/"] 
+      ["Have I Been Pwned? (exposição)", "https://haveibeenpwned.com/"]
     ]],
     ["Perfis / resets por e-mail", [
       ["LinkedIn (reset)", "https://www.linkedin.com/checkpoint/rp/request-password-reset"],
@@ -198,7 +205,6 @@ function sourcesFromEmail(email){
 function sourcesFromPhone(phoneFmt, phoneRaw){
   const p = encodeURIComponent(phoneFmt);
   const d = encodeURIComponent(onlyDigits(phoneRaw));
-  // busca correlação telefone → e-mail
   return [
     ["Motores (telefone → e-mail)", [
       ["Google (amplo)", `https://www.google.com/search?q=%22${p}%22+(email+OR+e-mail+OR+contato)`],
@@ -250,7 +256,7 @@ function buildLists(groups){
 
 async function openDirectory(title, url){
   const abs = /^https?:\/\//i.test(url) ? url : `https://${url}`;
-  setViewer(abs,{forceReader:true});
+  setViewer(abs,{forceReader:true}); // visor em modo leitura
 
   const pv = document.getElementById("preview");
   pv.style.display="block";
@@ -366,7 +372,6 @@ function gerar(){
   }else if(det.type==="cpf"){
     groups = sourcesFromCPF(det.value);
   }else{
-    // pesquisa livre (tenta achar e-mails relacionados ao termo)
     const term = encodeURIComponent(`"${det.value}" email OR e-mail`);
     groups = [
       ["Pesquisa livre", [
