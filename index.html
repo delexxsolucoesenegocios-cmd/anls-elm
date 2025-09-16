@@ -147,14 +147,27 @@ function detectType(q){
   return {type:"unknown", value:t};
 }
 
+/* ===================== Domínios que bloqueiam iFrame ===================== */
+const BLOCKED_IFRAME_HOSTS = new Set([
+  "google.com", "www.google.com", "consent.google.com",
+  "accounts.google.com", "www.youtube.com",
+  "scholar.google.com"
+]);
+function blocksEmbedding(url){
+  try {
+    const u = new URL(/^https?:\/\//i.test(url) ? url : `https://${url}`);
+    return BLOCKED_IFRAME_HOSTS.has(u.hostname);
+  } catch { return false; }
+}
+
 /* ===================== Visor / Reader (CORRIGIDO) ===================== */
-// Constrói a URL do r.jina.ai no formato correto: https://r.jina.ai/http://host/caminho?query
+// https://r.jina.ai/http://host/caminho?query
 function reader(url) {
   const abs = /^https?:\/\//i.test(url) ? url : `https://${url}`;
   try {
     const u = new URL(abs);
     return `https://r.jina.ai/http://${u.host}${u.pathname}${u.search}`;
-  } catch (e) {
+  } catch {
     return `https://r.jina.ai/http://${abs.replace(/^https?:\/\//i,"")}`;
   }
 }
@@ -188,9 +201,10 @@ function sourcesFromEmail(email){
   return [
     ["Consultas diretas (e-mail)", [
       ["Epieos (OSINT e-mail)", "https://epieos.com/"],
-      ["Google: \"e-mail\" + telefone/nome", `https://www.google.com/search?q=%22${e}%22+(telefone+OR+whatsapp+OR+contato+OR+%22nome%20completo%22)`],
+      ["Startpage: \"email\" + telefone/nome", `https://www.startpage.com/sp/search?query=%22${e}%22+(telefone+OR+whatsapp+OR+contato+OR+%22nome%20completo%22)`],
+      ["DuckDuckGo (HTML)", `https://duckduckgo.com/html/?q=%22${e}%22+(telefone+OR+whatsapp+OR+contato)`],
+      ["Google (abrir em nova aba)", `https://www.google.com/search?q=%22${e}%22+(telefone+OR+whatsapp+OR+contato)`],
       ["Bing", `https://www.bing.com/search?q=%22${e}%22+telefone+OR+whatsapp+OR+contato`],
-      ["DuckDuckGo", `https://duckduckgo.com/?q=%22${e}%22+telefone+OR+whatsapp+OR+contato`],
       ["Have I Been Pwned? (exposição)", "https://haveibeenpwned.com/"]
     ]],
     ["Perfis / resets por e-mail", [
@@ -207,14 +221,15 @@ function sourcesFromPhone(phoneFmt, phoneRaw){
   const d = encodeURIComponent(onlyDigits(phoneRaw));
   return [
     ["Motores (telefone → e-mail)", [
-      ["Google (amplo)", `https://www.google.com/search?q=%22${p}%22+(email+OR+e-mail+OR+contato)`],
-      ["Google (somente dígitos)", `https://www.google.com/search?q=%22${d}%22+(email+OR+e-mail+OR+contato)`],
-      ["Bing", `https://www.bing.com/search?q=%22${p}%22+(email+OR+e-mail+OR+contato)`],
-      ["DuckDuckGo", `https://duckduckgo.com/?q=%22${p}%22+(email+OR+e-mail+OR+contato)`]
+      ["Startpage (proxy do Google)", `https://www.startpage.com/sp/search?query=%22${p}%22+(email+OR+e-mail+OR+contato)`],
+      ["DuckDuckGo (HTML)", `https://duckduckgo.com/html/?q=%22${p}%22+(email+OR+e-mail+OR+contato)`],
+      ["Google (abrir em nova aba)", `https://www.google.com/search?q=%22${p}%22+(email+OR+e-mail+OR+contato)`],
+      ["Google dígitos (abrir em nova aba)", `https://www.google.com/search?q=%22${d}%22+(email+OR+e-mail+OR+contato)`],
+      ["Bing", `https://www.bing.com/search?q=%22${p}%22+(email+OR+e-mail+OR+contato)`]
     ]],
     ["Documentos", [
-      ["PDFs com e-mail", `https://www.google.com/search?q=%22${p}%22+(email+OR+e-mail)+filetype:pdf`],
-      ["Planilhas (XLS/XLSX/CSV)", `https://www.google.com/search?q=%22${p}%22+(email+OR+e-mail)+(filetype:xls+OR+filetype:xlsx+OR+filetype:csv)`]
+      ["PDFs com e-mail (DDG HTML)", `https://duckduckgo.com/html/?q=%22${p}%22+(email+OR+e-mail)+filetype:pdf`],
+      ["Planilhas (XLS/XLSX/CSV) — DDG HTML", `https://duckduckgo.com/html/?q=%22${p}%22+(email+OR+e-mail)+(filetype:xls+OR+filetype:xlsx+OR+filetype:csv)`]
     ]],
     ["Recuperação de cadastro (informar telefone)", RESET_PLATFORMS.map(([n,u])=>[`${n} — “esqueci minha senha”`, u])]
   ];
@@ -224,11 +239,11 @@ function sourcesFromCPF(cpfFmt){
   const c = encodeURIComponent(cpfFmt);
   return [
     ["Google Dorks (CPF → e-mail)", [
-      ["PDF com e-mail", `https://www.google.com/search?q=%22${c}%22+(email+OR+e-mail)+filetype:pdf`],
-      ["Planilhas (XLS/XLSX/CSV)", `https://www.google.com/search?q=%22${c}%22+(email+OR+e-mail)+(filetype:xls+OR+filetype:xlsx+OR+filetype:csv)`],
-      ["Diários/Transparência", `https://www.google.com/search?q=site:in.gov.br+OR+site:transparencia.*+%22${c}%22+(email+OR+e-mail)`],
-      ["*.jus.br", `https://www.google.com/search?q=site:*.jus.br+%22${c}%22+(email+OR+e-mail)`],
-      ["MEI (cnpj.biz)", `https://www.google.com/search?q=%22${c}%22+site:cnpj.biz+(email+OR+e-mail)`]
+      ["Startpage PDFs", `https://www.startpage.com/sp/search?query=%22${c}%22+(email+OR+e-mail)+filetype:pdf`],
+      ["Startpage Planilhas", `https://www.startpage.com/sp/search?query=%22${c}%22+(email+OR+e-mail)+(filetype:xls+OR+filetype:xlsx+OR+filetype:csv)`],
+      ["Startpage Diários/Transparência", `https://www.startpage.com/sp/search?query=site:in.gov.br+OR+site:transparencia.*+%22${c}%22+(email+OR+e-mail)`],
+      ["Startpage *.jus.br", `https://www.startpage.com/sp/search?query=site:*.jus.br+%22${c}%22+(email+OR+e-mail)`],
+      ["Google (abrir em nova aba)", `https://www.google.com/search?q=%22${c}%22+(email+OR+e-mail)`]
     ]],
     ["Recuperação de cadastro (informar CPF)", RESET_PLATFORMS.map(([n,u])=>[`${n} — “esqueci minha senha”`, u])]
   ];
@@ -256,15 +271,52 @@ function buildLists(groups){
 
 async function openDirectory(title, url){
   const abs = /^https?:\/\//i.test(url) ? url : `https://${url}`;
-  setViewer(abs,{forceReader:true}); // visor em modo leitura
-
-  const pv = document.getElementById("preview");
+  const pv  = document.getElementById("preview");
   pv.style.display="block";
+
+  if (blocksEmbedding(abs)) {
+    setViewer("about:blank");
+    document.getElementById("viewerUrl").textContent =
+      "Este provedor não permite incorporação. Use “Abrir em nova aba”.";
+    pv.innerHTML = `
+      <div class="pv-item">
+        <div class="pv-title">${title}</div>
+        <div class="pv-url">${abs}</div>
+        <div class="pv-snippet">
+          Alguns provedores (ex.: Google) bloqueiam visores e podem exigir CAPTCHA.
+          Clique em <b>“Abrir em nova aba”</b> para visualizar normalmente.
+        </div>
+        <div style="margin-top:6px">
+          <button type="button" onclick="window.open('${abs.replace(/'/g,"\\'")}','_blank')">Abrir em nova aba</button>
+        </div>
+      </div>`;
+    window.__viewer_current = abs;
+    window.__viewer_reader  = false;
+    return;
+  }
+
+  setViewer(abs,{forceReader:true});
   pv.innerHTML = `<div class="pv-item"><div class="pv-title">Carregando prévia de ${title}…</div></div>`;
   try{
     const resp = await fetch(reader(abs), {mode:"cors"});
     if(!resp.ok) throw new Error(resp.statusText);
     const txt = await resp.text();
+
+    if (/Too Many Requests|unusual traffic|CAPTCHA/i.test(txt)) {
+      pv.innerHTML = `
+        <div class="pv-item">
+          <div class="pv-title">${title}</div>
+          <div class="pv-url">${abs}</div>
+          <div class="pv-snippet">
+            O provedor retornou proteção anti-robô. Clique em <b>“Abrir em nova aba”</b> para ver a página diretamente.
+          </div>
+          <div style="margin-top:6px">
+            <button type="button" onclick="window.open('${abs.replace(/'/g,"\\'")}','_blank')">Abrir em nova aba</button>
+          </div>
+        </div>`;
+      return;
+    }
+
     const lines = txt.split("\n").filter(Boolean);
     const blocks=[]; let acc=[];
     for(const l of lines){
@@ -375,9 +427,10 @@ function gerar(){
     const term = encodeURIComponent(`"${det.value}" email OR e-mail`);
     groups = [
       ["Pesquisa livre", [
-        ["Google", `https://www.google.com/search?q=${term}`],
+        ["Startpage", `https://www.startpage.com/sp/search?query=${term}`],
+        ["DuckDuckGo (HTML)", `https://duckduckgo.com/html/?q=${term}`],
         ["Bing", `https://www.bing.com/search?q=${term}`],
-        ["DuckDuckGo", `https://duckduckgo.com/?q=${term}`]
+        ["Google (abrir em nova aba)", `https://www.google.com/search?q=${term}`]
       ]]
     ];
   }
